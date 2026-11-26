@@ -214,16 +214,47 @@ def fix_epub_xhtml(
         if not body or not body.get_text(strip=True):
             continue
         chunks = _chunk_body_elements(body)
-        fixed_parts = []
-        for chunk in chunks:
-            res = _call_llm(chunk, fix_prompt, api_key, model_name, provider, base_url)
-            fixed_parts.append(_strip_code_fences(res))
+        fixed_parts = [None] * len(chunks)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_idx = {
+                executor.submit(
+                    _call_llm, chunk, fix_prompt, api_key, model_name, provider, base_url
+                ): c_idx
+                for c_idx, chunk in enumerate(chunks)
+            }
+            for future in as_completed(future_to_idx):
+                c_idx = future_to_idx[future]
+                fixed_parts[c_idx] = _strip_code_fences(future.result())
         new_body = BeautifulSoup(f"<body>{''.join(fixed_parts)}</body>", "lxml")
         body.clear()
         if new_body.body:
             for child in list(new_body.body.children):
                 body.append(child)
         item.set_content(str(soup).encode("utf-8"))
+
+    def _ensure_toc_uids_fix(nodes, counter=None):
+        if counter is None:
+            counter = [0]
+        for node in nodes:
+            if isinstance(node, (list, tuple)):
+                if len(node) == 2 and not isinstance(node[0], (list, tuple)):
+                    sec, children = node
+                    if getattr(sec, "uid", None) is None:
+                        counter[0] += 1
+                        sec.uid = f"nav-{counter[0]}"
+                    _ensure_toc_uids_fix(children, counter)
+                else:
+                    _ensure_toc_uids_fix(node, counter)
+            else:
+                if getattr(node, "uid", None) is None:
+                    counter[0] += 1
+                    node.uid = f"nav-{counter[0]}"
+
+    _ensure_toc_uids_fix(book.toc)
+    for item in book.get_items():
+        content = item.get_content()
+        if content is None or (item.get_type() == ITEM_DOCUMENT and not content.strip()):
+            item.set_content(b"<html><body></body></html>" if item.get_type() == ITEM_DOCUMENT else b"")
 
     epub.write_epub(output_epub_path, book, {})
     return output_epub_path
