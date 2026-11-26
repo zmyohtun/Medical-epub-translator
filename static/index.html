@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Medical PDF → EPUB → Myanmar Translator</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --error: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1.2rem 1.5rem;
+      line-height: 1.45;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    .pipeline-grid.direct-mode {
+      grid-template-columns: minmax(0, 760px);
+      justify-content: center;
+    }
+    @media (max-width: 900px) {
+      .pipeline-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    header {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    header h1 {
+      margin: 0 0 0.4rem;
+      font-size: 1.75rem;
+      color: #0c4a6e;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .step-badge {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-weight: 600;
+      font-size: 0.8rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      margin-bottom: 0.6rem;
+    }
+    h2 {
+      margin: 0 0 0.4rem;
+      font-size: 1.2rem;
+    }
+    .desc {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.2rem;
+    }
+    label {
+      display: block;
+      font-weight: 500;
+      font-size: 0.88rem;
+      margin-bottom: 0.35rem;
+      margin-top: 0.9rem;
+    }
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-family: inherit;
+    }
+    input[type="file"] {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px dashed #94a3b8;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .checkbox-row input { width: auto; }
+    .checkbox-row label { margin: 0; font-weight: 500; }
+    button {
+      margin-top: 1.2rem;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0.7rem 1.3rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .progress-box {
+      margin-top: 1rem;
+      padding: 0.9rem;
+      border-radius: 8px;
+      background: #f1f5f9;
+      display: none;
+    }
+    .progress-bar-wrap {
+      width: 100%;
+      height: 8px;
+      background: #cbd5e1;
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 0.5rem 0;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.25s ease;
+    }
+    .status-text { font-size: 0.88rem; color: var(--text); }
+    .download-link {
+      display: inline-block;
+      margin-top: 0.6rem;
+      color: var(--success);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .download-link:hover { text-decoration: underline; }
+    .error-text { color: var(--error); font-size: 0.88rem; margin-top: 0.5rem; }
+    .mode-tabs {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .mode-tab {
+      margin-top: 0;
+      background: #e2e8f0;
+      color: var(--text);
+      padding: 0.55rem 1.1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .mode-tab:hover { background: #cbd5e1; }
+    .mode-tab.active {
+      background: var(--primary);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Medical PDF → Structured EPUB → Myanmar</h1>
+      <p>ဆေးပညာဖတ်စာအုပ်များကို စနစ်ကျသော EPUB အဖြစ်ပြောင်းလဲပြီး မြန်မာဘာသာသို့ အဆင့်ဆင့်ပြန်ဆိုရန်</p>
+    </header>
+
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tabPipeline" onclick="setMode('pipeline')">PDF → EPUB → Myanmar</button>
+      <button class="mode-tab" id="tabDirect" onclick="setMode('direct')">Direct EPUB → Myanmar (EPUB တိုက်ရိုက်ပြန်ရန်)</button>
+    </div>
+
+    <div class="pipeline-grid" id="pipelineGrid">
+    <!-- STEP 1 -->
+    <div class="card" id="step1Card">
+      <span class="step-badge">STEP 1</span>
+      <h2>PDF → Structured EPUB (စနစ်ကျသော EPUB ပြောင်းရန်)</h2>
+      <p class="desc">Extracts chapters, headings, medical tables, images/diagrams, and clinical annotations into a clean EPUB3 file.</p>
+
+      <label for="pdfFile">Medical Textbook PDF (.pdf)</label>
+      <input type="file" id="pdfFile" accept=".pdf" />
+
+      <div class="row">
+        <div>
+          <label for="bookTitle">Book Title (Optional)</label>
+          <input type="text" id="bookTitle" placeholder="e.g. Harrison's Principles of Internal Medicine" />
+        </div>
+        <div>
+          <label for="bookAuthor">Author (Optional)</label>
+          <input type="text" id="bookAuthor" placeholder="e.g. Kasper et al." />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="pdfEngine">Conversion Engine</label>
+          <select id="pdfEngine">
+            <option value="calibre" selected>Calibre Engine (Recommended — auto-fallback to PyMuPDF)</option>
+            <option value="pymupdf">PyMuPDF Built-in Engine</option>
+          </select>
+        </div>
+        <div>
+          <label for="pagesPerChap">Pages per Chapter (PyMuPDF fallback)</label>
+          <input type="number" id="pagesPerChap" value="15" min="1" max="100" />
+        </div>
+      </div>
+
+      <button id="btnStep1" onclick="startStep1()">Convert PDF to Structured EPUB</button>
+
+      <div class="progress-box" id="prog1">
+        <div class="status-text" id="msg1">Starting...</div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="bar1"></div></div>
+        <div id="res1"></div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="card">
+      <span class="step-badge">STEP 2</span>
+      <h2>EPUB → Myanmar Medical Translation (မြန်မာဘာသာပြန်ရန်)</h2>
+      <p class="desc">Translates chapter-by-chapter while preserving tables, figures, annotations, and medical terminology.</p>
+
+      <label for="epubFile">Upload EPUB (.epub) — or leave empty to use Step 1 output</label>
+      <input type="file" id="epubFile" accept=".epub" />
+
+      <div class="row">
+        <div>
+          <label for="provider">AI Provider (Sagar-style)</label>
+          <select id="provider" onchange="toggleProvider()">
+            <option value="gemini" selected>Google Gemini</option>
+            <option value="openai">OpenAI-Compatible Custom Provider</option>
+          </select>
+        </div>
+        <div>
+          <label for="modelName">Model Name</label>
+          <input type="text" id="modelName" value="gemini-2.5-flash" placeholder="gemini-2.5-flash or gpt-4o" />
+        </div>
+      </div>
+
+      <div id="baseUrlWrap" style="display:none;">
+        <label for="baseUrl">Custom Base URL (OpenAI-compatible)</label>
+        <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" />
+      </div>
+
+      <label for="apiKey">API Key</label>
+      <input type="password" id="apiKey" placeholder="AIza... or sk-..." />
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="bilingualTerms" checked />
+        <label for="bilingualTerms">Keep English Medical Terms in Parentheses — e.g. နှလုံးကြွက်သားပုပ်ခြင်း (Myocardial Infarction)</label>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="skipReferences" checked />
+        <label for="skipReferences">Skip References / Bibliography / Index sections (ဘာသာပြန်စရာမလိုသော Reference များကို ကျော်မည်)</label>
+      </div>
+
+      <label for="customNotes">Custom Glossary / Translation Instructions (Optional)</label>
+      <textarea id="customNotes" rows="2" placeholder="e.g. Keep all drug names and lab reference ranges in English."></textarea>
+
+      <label for="selectedChapters">Selected Chapters (Optional — e.g. 0,1,2 or leave empty for all)</label>
+      <input type="text" id="selectedChapters" placeholder="Leave empty to translate all chapters" />
+
+      <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+        <button id="btnStep2" onclick="startStep2()">Translate EPUB to Myanmar</button>
+        <button id="btnFixAi" style="background:#475569;" onclick="startFixAi()">Fix with AI (XHTML Repair)</button>
+        <button type="button" style="background:#0f766e;" onclick="saveSettings(true)">Save Settings</button>
+      </div>
+
+      <div class="progress-box" id="prog2">
+        <div class="status-text" id="msg2">Starting...</div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="bar2"></div></div>
+        <div id="res2"></div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <script>
+    let step1JobId = "";
+
+    function saveSettings(showAlert = false) {
+      const cfg = {
+        provider: document.getElementById("provider").value,
+        modelName: document.getElementById("modelName").value,
+        baseUrl: document.getElementById("baseUrl").value,
+        apiKey: document.getElementById("apiKey").value,
+        bilingualTerms: document.getElementById("bilingualTerms").checked,
+        skipReferences: document.getElementById("skipReferences").checked,
+        customNotes: document.getElementById("customNotes").value,
+      };
+      localStorage.setItem("med_epub_settings", JSON.stringify(cfg));
+      if (showAlert) alert("Settings saved!");
+    }
+
+    (function loadSettings() {
+      try {
+        const raw = localStorage.getItem("med_epub_settings");
+        if (!raw) return;
+        const cfg = JSON.parse(raw);
+        if (cfg.provider) document.getElementById("provider").value = cfg.provider;
+        if (cfg.modelName) document.getElementById("modelName").value = cfg.modelName;
+        if (cfg.baseUrl !== undefined) document.getElementById("baseUrl").value = cfg.baseUrl;
+        if (cfg.apiKey !== undefined) document.getElementById("apiKey").value = cfg.apiKey;
+        if (cfg.bilingualTerms !== undefined) document.getElementById("bilingualTerms").checked = cfg.bilingualTerms;
+        if (cfg.skipReferences !== undefined) document.getElementById("skipReferences").checked = cfg.skipReferences;
+        if (cfg.customNotes !== undefined) document.getElementById("customNotes").value = cfg.customNotes;
+        toggleProvider();
+      } catch (e) {}
+    })();
+
+    function toggleProvider() {
+      const p = document.getElementById("provider").value;
+      document.getElementById("baseUrlWrap").style.display = p === "openai" ? "block" : "none";
+    }
+
+    function setMode(mode) {
+      const step1 = document.getElementById("step1Card");
+      const grid = document.getElementById("pipelineGrid");
+      const tabP = document.getElementById("tabPipeline");
+      const tabD = document.getElementById("tabDirect");
+      if (mode === "direct") {
+        step1.style.display = "none";
+        grid.classList.add("direct-mode");
+        tabD.classList.add("active");
+        tabP.classList.remove("active");
+      } else {
+        step1.style.display = "block";
+        grid.classList.remove("direct-mode");
+        tabP.classList.add("active");
+        tabD.classList.remove("active");
+      }
+    }
+
+    async function pollJob(jobId, barId, msgId, resId, btnId, onComplete) {
+      const btn = document.getElementById(btnId);
+      const timer = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/jobs/${jobId}`);
+          const data = await r.json();
+          const pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
+          document.getElementById(barId).style.width = pct + "%";
+          document.getElementById(msgId).textContent = data.message || data.status;
+
+          if (data.status === "completed") {
+            clearInterval(timer);
+            btn.disabled = false;
+            document.getElementById(barId).style.width = "100%";
+            document.getElementById(resId).innerHTML =
+              `<a class="download-link" href="/api/download/${jobId}">⬇ Download ${data.output_file}</a>`;
+            if (onComplete) onComplete(jobId);
+          } else if (data.status === "failed") {
+            clearInterval(timer);
+            btn.disabled = false;
+            document.getElementById(resId).innerHTML =
+              `<div class="error-text">${data.error || "Failed"}</div>`;
+          }
+        } catch (err) {
+          clearInterval(timer);
+          btn.disabled = false;
+          document.getElementById(resId).innerHTML = `<div class="error-text">${err}</div>`;
+        }
+      }, 1000);
+    }
+
+    async function startStep1() {
+      const fileInput = document.getElementById("pdfFile");
+      if (!fileInput.files.length) {
+        alert("Please select a PDF file first.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", fileInput.files[0]);
+      fd.append("title", document.getElementById("bookTitle").value);
+      fd.append("author", document.getElementById("bookAuthor").value);
+      fd.append("engine", document.getElementById("pdfEngine").value);
+      fd.append("pages_per_chapter", document.getElementById("pagesPerChap").value);
+
+      document.getElementById("btnStep1").disabled = true;
+      document.getElementById("prog1").style.display = "block";
+      document.getElementById("res1").innerHTML = "";
+
+      const res = await fetch("/api/pdf-to-epub", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || "Error starting Step 1");
+        document.getElementById("btnStep1").disabled = false;
+        return;
+      }
+      pollJob(data.job_id, "bar1", "msg1", "res1", "btnStep1", (id) => {
+        step1JobId = id;
+      });
+    }
+
+    async function startStep2() {
+      const apiKey = document.getElementById("apiKey").value.trim();
+      if (!apiKey) {
+        alert("Please enter your Gemini API Key.");
+        return;
+      }
+      const epubInput = document.getElementById("epubFile");
+      if (!epubInput.files.length && !step1JobId) {
+        alert("Please upload an EPUB file or complete Step 1 first.");
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append("api_key", apiKey);
+      fd.append("provider", document.getElementById("provider").value);
+      fd.append("base_url", document.getElementById("baseUrl").value);
+      fd.append("model_name", document.getElementById("modelName").value);
+      fd.append("bilingual_terms", document.getElementById("bilingualTerms").checked);
+      fd.append("skip_references", document.getElementById("skipReferences").checked);
+      fd.append("selected_chapters", document.getElementById("selectedChapters").value);
+      fd.append("custom_notes", document.getElementById("customNotes").value);
+      if (epubInput.files.length) {
+        fd.append("file", epubInput.files[0]);
+      } else {
+        fd.append("source_job_id", step1JobId);
+      }
+
+      document.getElementById("btnStep2").disabled = true;
+      document.getElementById("prog2").style.display = "block";
+      document.getElementById("res2").innerHTML = "";
+
+      const res = await fetch("/api/translate-epub", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || "Error starting Step 2");
+        document.getElementById("btnStep2").disabled = false;
+        return;
+      }
+      pollJob(data.job_id, "bar2", "msg2", "res2", "btnStep2");
+    }
+
+    async function startFixAi() {
+      const apiKey = document.getElementById("apiKey").value.trim();
+      if (!apiKey) { alert("Please enter your API Key."); return; }
+      const epubInput = document.getElementById("epubFile");
+      if (!epubInput.files.length && !step1JobId) {
+        alert("Please upload an EPUB file or complete Step 1 first.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("api_key", apiKey);
+      fd.append("provider", document.getElementById("provider").value);
+      fd.append("base_url", document.getElementById("baseUrl").value);
+      fd.append("model_name", document.getElementById("modelName").value);
+      if (epubInput.files.length) fd.append("file", epubInput.files[0]);
+      else fd.append("source_job_id", step1JobId);
+
+      document.getElementById("btnFixAi").disabled = true;
+      document.getElementById("prog2").style.display = "block";
+      document.getElementById("res2").innerHTML = "";
+      const res = await fetch("/api/fix-epub-xhtml", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || "Error starting Fix with AI");
+        document.getElementById("btnFixAi").disabled = false;
+        return;
+      }
+      pollJob(data.job_id, "bar2", "msg2", "res2", "btnFixAi", (id) => { step1JobId = id; });
+    }
+  </script>
+</body>
+</html>
