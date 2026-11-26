@@ -1,6 +1,6 @@
 # 🩺📚 Medical PDF → Structured EPUB → Myanmar Translator
 
-A fast, physician-friendly web application that converts complex **Medical PDF textbooks** into **structured EPUB** files and translates them into **natural, accurate Myanmar** while preserving medical terminology, tables, figures, and formatting.
+A fast, medical-friendly web application that converts complex **Medical PDF textbooks** into **structured EPUB** files and translates them into **natural, accurate Myanmar** while preserving medical terminology, tables, figures, and formatting.
 
 ---
 
