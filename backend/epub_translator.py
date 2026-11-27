@@ -121,6 +121,7 @@ def _call_llm(
                         {"role": "user", "content": prompt_text},
                     ],
                     "temperature": 0.2,
+                    "frequency_penalty": 0.3,
                 }
                 resp = requests.post(url, headers=headers, json=payload, timeout=180)
                 resp.raise_for_status()
