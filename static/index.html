@@ -260,9 +260,23 @@
           </select>
         </div>
         <div>
-          <label for="modelName">Model Name</label>
-          <input type="text" id="modelName" value="gemini-2.5-flash" placeholder="gemini-2.5-flash or gpt-4o" />
+          <label for="modelName">Base Translation Model (Affordable)</label>
+          <select id="modelName">
+            <option value="google/gemini-2.5-flash">Google: Gemini 2.5 Flash (Recommended)</option>
+            <option value="deepseek/deepseek-chat">DeepSeek: V3 Chat (Budget)</option>
+            <option value="upstage/solar-pro-3">Upstage: Solar Pro 3 (Low Cost)</option>
+            <option value="qwen/qwen-2.5-72b-instruct">Qwen: 2.5 72B Instruct</option>
+          </select>
         </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <label for="proofModelName">Selective Proofread Model (Polishing Flagged Paragraphs)</label>
+        <select id="proofModelName">
+          <option value="google/gemini-2.5-pro">Google: Gemini 2.5 Pro (Best Medical Accuracy)</option>
+          <option value="anthropic/claude-3.7-sonnet">Anthropic: Claude 3.7 Sonnet</option>
+          <option value="openai/gpt-4o">OpenAI: GPT-4o</option>
+        </select>
       </div>
 
       <div id="baseUrlWrap" style="display:none;">
@@ -311,6 +325,7 @@
       const cfg = {
         provider: document.getElementById("provider").value,
         modelName: document.getElementById("modelName").value,
+        proofModelName: document.getElementById("proofModelName").value,
         baseUrl: document.getElementById("baseUrl").value,
         apiKey: document.getElementById("apiKey").value,
         bilingualTerms: document.getElementById("bilingualTerms").checked,
@@ -328,6 +343,7 @@
         const cfg = JSON.parse(raw);
         if (cfg.provider) document.getElementById("provider").value = cfg.provider;
         if (cfg.modelName) document.getElementById("modelName").value = cfg.modelName;
+        if (cfg.proofModelName) document.getElementById("proofModelName").value = cfg.proofModelName;
         if (cfg.baseUrl !== undefined) document.getElementById("baseUrl").value = cfg.baseUrl;
         if (cfg.apiKey !== undefined) document.getElementById("apiKey").value = cfg.apiKey;
         if (cfg.bilingualTerms !== undefined) document.getElementById("bilingualTerms").checked = cfg.bilingualTerms;
@@ -376,7 +392,8 @@
             document.getElementById(barId).style.width = "100%";
             document.getElementById(resId).innerHTML =
               `<a class="download-link" href="/api/download/${jobId}">⬇ Download ${data.output_file}</a>` +
-              `<button type="button" class="btn-secondary" style="margin-left:10px;padding:6px 12px;font-size:13px;" onclick="openEditor('${jobId}', '${data.output_file}')">✏️ Edit Chapters</button>`;
+              `<button type="button" class="btn-secondary" style="margin-left:10px;padding:6px 12px;font-size:13px;" onclick="openEditor('${jobId}', '${data.output_file}')">✏️ Edit Chapters</button>` +
+              `<button type="button" id="btnProof" class="btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:13px;background:#7c3aed;color:#fff;border:none;" onclick="runSelectiveProofread('${jobId}')">✨ Selective Proofread</button>`;
             if (onComplete) onComplete(jobId);
           } else if (data.status === "failed") {
             clearInterval(timer);
@@ -538,6 +555,27 @@
 
     function closeEditor() {
       document.getElementById("edModal").style.display = "none";
+    }
+
+    async function runSelectiveProofread(srcJobId) {
+      const btn = document.getElementById("btnProof");
+      if (btn) btn.disabled = true;
+      const fd = new FormData();
+      fd.append("job_id", srcJobId);
+      fd.append("api_key", document.getElementById("apiKey").value);
+      fd.append("model_name", document.getElementById("proofModelName").value);
+      fd.append("provider", document.getElementById("provider").value);
+      fd.append("base_url", document.getElementById("baseUrl").value);
+      document.getElementById("msg2").textContent = "Starting Selective Proofread...";
+      document.getElementById("bar2").style.width = "10%";
+      const res = await fetch("/api/selective-proofread", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || "Error starting Selective Proofread");
+        if (btn) btn.disabled = false;
+        return;
+      }
+      pollJob(data.job_id, "bar2", "msg2", "res2", "btnTranslate", null);
     }
   </script>
 

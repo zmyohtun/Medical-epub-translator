@@ -393,3 +393,64 @@ def api_save_job_chapter(job_id: str, idx: int, payload: dict):
 
     epub.write_epub(j["output_path"], book, {})
     return {"status": "saved", "idx": idx}
+
+
+@app.post("/api/selective-proofread")
+async def api_selective_proofread(
+    job_id: str = Form(""),
+    api_key: str = Form(""),
+    model_name: str = Form("google/gemini-2.5-pro"),
+    provider: str = Form("openai_compatible"),
+    base_url: str = Form("https://openrouter.ai/api/v1"),
+):
+    if not job_id or job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Completed translation job not found.")
+    src_job = jobs[job_id]
+    if src_job["status"] != "completed" or not os.path.exists(src_job["output_path"]):
+        raise HTTPException(status_code=400, detail="Source EPUB is not ready.")
+
+    from backend.selective_proofread import selective_proofread_epub
+
+    new_job_id = str(uuid.uuid4())[:8]
+    out_dir = os.path.join(WORKSPACE_DIR, new_job_id)
+    os.makedirs(out_dir, exist_ok=True)
+    base_name = os.path.splitext(src_job["output_file"])[0]
+    output_filename = f"{base_name}_proofread.epub"
+    output_path = os.path.join(out_dir, output_filename)
+
+    jobs[new_job_id] = {
+        "status": "running",
+        "step": "selective_proofread",
+        "current": 0,
+        "total": 1,
+        "message": "Scanning draft EPUB for flagged paragraphs...",
+        "output_file": output_filename,
+        "output_path": output_path,
+        "error": None,
+    }
+
+    def _run():
+        try:
+            def _cb(cur, tot, msg):
+                jobs[new_job_id]["current"] = cur
+                jobs[new_job_id]["total"] = max(tot, 1)
+                jobs[new_job_id]["message"] = msg
+
+            selective_proofread_epub(
+                draft_epub_path=src_job["output_path"],
+                output_epub_path=output_path,
+                api_key=api_key.strip(),
+                model_name=model_name.strip(),
+                provider=provider.strip(),
+                base_url=base_url.strip(),
+                progress_callback=_cb,
+            )
+            jobs[new_job_id]["status"] = "completed"
+            jobs[new_job_id]["message"] = "Selective Proofreading completed!"
+        except Exception as e:
+            jobs[new_job_id]["status"] = "failed"
+            jobs[new_job_id]["error"] = str(e)
+            jobs[new_job_id]["message"] = f"Error: {e}"
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"job_id": new_job_id}
