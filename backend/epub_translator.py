@@ -125,6 +125,9 @@ def _call_llm(
                 resp = requests.post(url, headers=headers, json=payload, timeout=180)
                 resp.raise_for_status()
                 data = resp.json()
+                if "choices" not in data:
+                    err_msg = data.get("error", {}).get("message") if isinstance(data.get("error"), dict) else str(data)
+                    raise RuntimeError(f"API error: {err_msg}")
                 return data["choices"][0]["message"]["content"]
 
             client = genai.Client(api_key=api_key)
