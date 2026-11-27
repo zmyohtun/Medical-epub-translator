@@ -375,7 +375,8 @@
             btn.disabled = false;
             document.getElementById(barId).style.width = "100%";
             document.getElementById(resId).innerHTML =
-              `<a class="download-link" href="/api/download/${jobId}">⬇ Download ${data.output_file}</a>`;
+              `<a class="download-link" href="/api/download/${jobId}">⬇ Download ${data.output_file}</a>` +
+              `<button type="button" class="btn-secondary" style="margin-left:10px;padding:6px 12px;font-size:13px;" onclick="openEditor('${jobId}', '${data.output_file}')">✏️ Edit Chapters</button>`;
             if (onComplete) onComplete(jobId);
           } else if (data.status === "failed") {
             clearInterval(timer);
@@ -489,6 +490,73 @@
       }
       pollJob(data.job_id, "bar2", "msg2", "res2", "btnFixAi", (id) => { step1JobId = id; });
     }
+
+    let edJobId = null;
+    async function openEditor(jobId, filename) {
+      edJobId = jobId;
+      document.getElementById("edModal").style.display = "flex";
+      document.getElementById("edDownloadLink").href = `/api/download/${jobId}`;
+      document.getElementById("edStatus").textContent = "Loading chapters...";
+      const res = await fetch(`/api/jobs/${jobId}/chapters`);
+      const data = await res.json();
+      const sel = document.getElementById("edChapterSelect");
+      sel.innerHTML = "";
+      (data.chapters || []).forEach(ch => {
+        const opt = document.createElement("option");
+        opt.value = ch.idx;
+        opt.textContent = `${ch.idx}: ${ch.title}`;
+        sel.appendChild(opt);
+      });
+      if (data.chapters && data.chapters.length > 0) {
+        await loadEditorChapter(data.chapters[0].idx);
+      }
+    }
+
+    async function loadEditorChapter(idx) {
+      document.getElementById("edStatus").textContent = "Loading chapter...";
+      const res = await fetch(`/api/jobs/${edJobId}/chapters/${idx}`);
+      const data = await res.json();
+      document.getElementById("edVisual").innerHTML = data.html || "";
+      document.getElementById("edStatus").textContent = `Editing: ${data.name}`;
+    }
+
+    async function saveEditorChapter() {
+      const idx = document.getElementById("edChapterSelect").value;
+      const html = document.getElementById("edVisual").innerHTML;
+      document.getElementById("edStatus").textContent = "Saving...";
+      const res = await fetch(`/api/jobs/${edJobId}/chapters/${idx}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html })
+      });
+      if (res.ok) {
+        document.getElementById("edStatus").textContent = "✅ Saved! You can edit another chapter or Download.";
+      } else {
+        document.getElementById("edStatus").textContent = "❌ Save failed.";
+      }
+    }
+
+    function closeEditor() {
+      document.getElementById("edModal").style.display = "none";
+    }
   </script>
+
+  <div id="edModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;width:100%;max-width:900px;max-height:90vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+      <div style="padding:14px 18px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <strong>✏️ EPUB Chapter Editor</strong>
+        <select id="edChapterSelect" onchange="loadEditorChapter(this.value)" style="flex:1;max-width:420px;padding:6px 10px;border-radius:6px;border:none;"></select>
+        <button type="button" onclick="closeEditor()" style="background:#334155;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">✕ Close</button>
+      </div>
+      <div id="edVisual" contenteditable="true" style="flex:1;overflow-y:auto;padding:20px;line-height:1.7;font-size:15px;outline:none;background:#f8fafc;"></div>
+      <div style="padding:12px 18px;background:#f1f5f9;border-top:1px solid #cbd5e1;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <span id="edStatus" style="font-size:13px;color:#334155;"></span>
+        <div style="display:flex;gap:10px;">
+          <button type="button" onclick="saveEditorChapter()" style="background:#0d9488;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;">💾 Save Chapter</button>
+          <a id="edDownloadLink" href="#" style="background:#0284c7;color:#fff;text-decoration:none;padding:8px 16px;border-radius:8px;font-weight:600;">⬇ Download EPUB</a>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

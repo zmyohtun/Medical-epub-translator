@@ -296,3 +296,100 @@ def api_download(job_id: str):
         filename=j["output_file"],
         media_type="application/epub+zip",
     )
+
+
+@app.get("/api/jobs/{job_id}/chapters")
+def api_list_job_chapters(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    j = jobs[job_id]
+    if j["status"] != "completed" or not os.path.exists(j["output_path"]):
+        raise HTTPException(status_code=400, detail="EPUB not ready.")
+    from ebooklib import epub, ITEM_DOCUMENT
+    from bs4 import BeautifulSoup
+
+    book = epub.read_epub(j["output_path"])
+    docs = [item for item in book.get_items() if item.get_type() == ITEM_DOCUMENT]
+    chapters = []
+    for idx, item in enumerate(docs):
+        raw = item.get_content().decode("utf-8", errors="replace")
+        soup = BeautifulSoup(raw, "lxml")
+        h = soup.find(["h1", "h2", "h3", "title"])
+        title = h.get_text(strip=True)[:80] if h else item.get_name()
+        chapters.append({"idx": idx, "name": item.get_name(), "title": title or item.get_name()})
+    return {"chapters": chapters}
+
+
+@app.get("/api/jobs/{job_id}/chapters/{idx}")
+def api_get_job_chapter(job_id: str, idx: int):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    j = jobs[job_id]
+    if j["status"] != "completed" or not os.path.exists(j["output_path"]):
+        raise HTTPException(status_code=400, detail="EPUB not ready.")
+    from ebooklib import epub, ITEM_DOCUMENT
+    from bs4 import BeautifulSoup
+
+    book = epub.read_epub(j["output_path"])
+    docs = [item for item in book.get_items() if item.get_type() == ITEM_DOCUMENT]
+    if idx < 0 or idx >= len(docs):
+        raise HTTPException(status_code=404, detail="Chapter index out of range.")
+    item = docs[idx]
+    raw = item.get_content().decode("utf-8", errors="replace")
+    soup = BeautifulSoup(raw, "lxml")
+    body_html = "".join(str(c) for c in soup.body.children) if soup.body else raw
+    return {"idx": idx, "name": item.get_name(), "html": body_html}
+
+
+@app.post("/api/jobs/{job_id}/chapters/{idx}")
+def api_save_job_chapter(job_id: str, idx: int, payload: dict):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    j = jobs[job_id]
+    if j["status"] != "completed" or not os.path.exists(j["output_path"]):
+        raise HTTPException(status_code=400, detail="EPUB not ready.")
+    from ebooklib import epub, ITEM_DOCUMENT
+    from bs4 import BeautifulSoup
+
+    book = epub.read_epub(j["output_path"])
+    docs = [item for item in book.get_items() if item.get_type() == ITEM_DOCUMENT]
+    if idx < 0 or idx >= len(docs):
+        raise HTTPException(status_code=404, detail="Chapter index out of range.")
+    item = docs[idx]
+    raw = item.get_content().decode("utf-8", errors="replace")
+    soup = BeautifulSoup(raw, "lxml")
+    new_body = BeautifulSoup(f"<body>{payload.get('html', '')}</body>", "lxml")
+    if soup.body and new_body.body:
+        soup.body.clear()
+        for child in list(new_body.body.children):
+            soup.body.append(child)
+        item.set_content(str(soup).encode("utf-8"))
+    else:
+        item.set_content(f"<html><body>{payload.get('html', '')}</body></html>".encode("utf-8"))
+
+    def _ensure_uids(nodes, counter=None):
+        if counter is None:
+            counter = [0]
+        for node in nodes:
+            if isinstance(node, (list, tuple)):
+                if len(node) == 2 and not isinstance(node[0], (list, tuple)):
+                    sec, children = node
+                    if getattr(sec, "uid", None) is None:
+                        counter[0] += 1
+                        sec.uid = f"nav-{counter[0]}"
+                    _ensure_uids(children, counter)
+                else:
+                    _ensure_uids(node, counter)
+            else:
+                if getattr(node, "uid", None) is None:
+                    counter[0] += 1
+                    node.uid = f"nav-{counter[0]}"
+
+    _ensure_uids(book.toc)
+    for it in book.get_items():
+        c = it.get_content()
+        if c is None or (it.get_type() == ITEM_DOCUMENT and not c.strip()):
+            it.set_content(b"<html><body></body></html>" if it.get_type() == ITEM_DOCUMENT else b"")
+
+    epub.write_epub(j["output_path"], book, {})
+    return {"status": "saved", "idx": idx}
