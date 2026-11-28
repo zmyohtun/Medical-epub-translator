@@ -295,9 +295,9 @@ def _extract_page_html(
         ):
             continue
 
-        # Split merged numbered references (e.g. '38. Author... 39. Author...') into separate paragraphs
-        if re.search(r"\(\d{4}\)", full_text) and re.search(r"\b\d{1,3}\.\s+[A-Z][a-z]+", full_text):
-            ref_parts = re.split(r"\s+(?=\d{1,3}\.\s+[A-Z][a-z]+)", full_text)
+        # Split merged numbered references (e.g. '1. E. Simson... 2. L.M. Sandhaus...') into separate paragraphs
+        if re.search(r"\(\d{4}\)", full_text) and re.search(r"\b\d{1,3}\.\s+[A-Z]", full_text):
+            ref_parts = re.split(r"\s+(?=\d{1,3}\.\s+[A-Z])", full_text)
             if len(ref_parts) > 1:
                 for rp in ref_parts:
                     if rp.strip():
@@ -306,9 +306,9 @@ def _extract_page_html(
 
         escaped = html.escape(full_text)
 
-        if max_size >= body_size * 1.45:
+        if len(full_text) < 150 and max_size >= body_size * 1.45:
             parts.append(f"<h1>{escaped}</h1>")
-        elif max_size >= body_size * 1.2 or (is_bold and len(full_text) < 120 and max_size >= body_size * 1.05):
+        elif len(full_text) < 150 and (max_size >= body_size * 1.2 or (is_bold and len(full_text) < 120 and max_size >= body_size * 1.05)):
             parts.append(f"<h2>{escaped}</h2>")
         elif re.match(r"^(Note|Clinical Pearl|Warning|Box|Key Point|Annotation)\b", full_text, re.IGNORECASE):
             parts.append(f'<div class="annotation"><p>{escaped}</p></div>')
