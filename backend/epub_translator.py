@@ -78,14 +78,21 @@ def _build_system_prompt(bilingual_terms: bool, custom_notes: str = "") -> str:
 
 def _chunk_body_elements(body_soup: BeautifulSoup, max_chars: int = 6000) -> list[str]:
     """Split <body> children into manageable HTML chunks without breaking tags."""
+    def _iter_parts(node):
+        for child in node.children:
+            s = str(child)
+            if not s.strip():
+                continue
+            if len(s) > max_chars and getattr(child, "name", None) in ("div", "section", "article", "main"):
+                yield from _iter_parts(child)
+            else:
+                yield s
+
     chunks: list[str] = []
     current: list[str] = []
     current_len = 0
 
-    for child in body_soup.children:
-        s = str(child)
-        if not s.strip():
-            continue
+    for s in _iter_parts(body_soup):
         if current_len + len(s) > max_chars and current:
             chunks.append("".join(current))
             current = [s]
