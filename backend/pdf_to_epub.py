@@ -248,6 +248,12 @@ def _extract_page_html(
         full_text = " ".join(block_text_parts).strip()
         if not full_text:
             continue
+        # Skip isolated chart/axis-label fragments (e.g. '100 101 CD45', '800 800', 'SSC FSC')
+        if len(full_text) <= 60 and re.fullmatch(
+            r"(?:[\d.\-–+%^/]+|SSC|FSC|FL\d|CD\d+[a-z]?|FITC|PE|APC|PerCP|cyCD\d+|sCD\d+)(?:\s+(?:[\d.\-–+%^/]+|SSC|FSC|FL\d|CD\d+[a-z]?|FITC|PE|APC|PerCP|cyCD\d+|sCD\d+))*",
+            full_text,
+        ):
+            continue
 
         escaped = html.escape(full_text)
 
