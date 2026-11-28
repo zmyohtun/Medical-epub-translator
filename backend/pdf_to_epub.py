@@ -242,7 +242,7 @@ def _extract_page_html(
         if not merged:
             clip_rects.append(r)
 
-    pad = 24
+    pad = 40
     clip_rects = [
         fitz.Rect(
             max(page.rect.x0, cr.x0 - pad),
