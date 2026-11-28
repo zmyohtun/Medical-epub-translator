@@ -275,22 +275,36 @@ def _extract_page_html(
         else:
             parts.append(f"<p>{escaped}</p>")
 
-    for img_idx, img_info in enumerate(page.get_images(full=True)):
+    # Figure-Region Snapshot: capture composite diagrams (image + overlaid labels/arrows) as a single crisp PNG
+    fig_rects = []
+    for img_info in page.get_images(full=True):
         xref = img_info[0]
         if xref in seen_xrefs:
             continue
         seen_xrefs.add(xref)
+        for r in page.get_image_rects(xref):
+            if r.width > 40 and r.height > 40:
+                fig_rects.append(r)
+
+    if fig_rects:
+        union_rect = fig_rects[0]
+        for r in fig_rects[1:]:
+            union_rect = union_rect | r
+        pad = 24
+        clip_rect = fitz.Rect(
+            max(page.rect.x0, union_rect.x0 - pad),
+            max(page.rect.y0, union_rect.y0 - pad),
+            min(page.rect.x1, union_rect.x1 + pad),
+            min(page.rect.y1, union_rect.y1 + pad),
+        )
         try:
-            base_img = page.parent.extract_image(xref)
-            img_bytes = base_img["image"]
-            ext = base_img.get("ext", "png")
-            if len(img_bytes) < 2048:
-                continue
-            img_filename = f"images/p{page_num}_img{img_idx}.{ext}"
+            pix = page.get_pixmap(clip=clip_rect, dpi=180)
+            img_bytes = pix.tobytes("png")
+            img_filename = f"images/p{page_num}_fig.png"
             epub_img = epub.EpubItem(
-                uid=f"img_{page_num}_{img_idx}",
+                uid=f"img_{page_num}_fig",
                 file_name=img_filename,
-                media_type=f"image/{ext}",
+                media_type="image/png",
                 content=img_bytes,
             )
             book.add_item(epub_img)
@@ -298,7 +312,7 @@ def _extract_page_html(
                 f'<figure><img src="{img_filename}" alt="Figure p.{page_num}"/></figure>'
             )
         except Exception:
-            continue
+            pass
 
     return "\n".join(parts)
 
