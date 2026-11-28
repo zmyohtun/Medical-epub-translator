@@ -395,7 +395,8 @@
             document.getElementById(resId).innerHTML =
               `<a class="download-link" href="/api/download/${jobId}">⬇ Download ${data.output_file}</a>` +
               `<button type="button" class="btn-secondary" style="margin-left:10px;padding:6px 12px;font-size:13px;" onclick="openEditor('${jobId}', '${data.output_file}')">✏️ Edit Chapters</button>` +
-              `<button type="button" id="btnProof" class="btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:13px;background:#7c3aed;color:#fff;border:none;" onclick="runSelectiveProofread('${jobId}')">✨ Selective Proofread</button>`;
+              `<button type="button" id="btnProof" class="btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:13px;background:#7c3aed;color:#fff;border:none;" onclick="runSelectiveProofread('${jobId}')">✨ Selective Proofread</button>` +
+              `<button type="button" class="btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:13px;background:#0284c7;color:#fff;border:none;" onclick="openQaModal('${jobId}')">📊 QA Check</button>`;
             if (onComplete) onComplete(jobId);
           } else if (data.status === "failed") {
             clearInterval(timer);
@@ -600,7 +601,33 @@
         } catch (e) {}
       }, 600);
     }
+
+    async function openQaModal(jobId) {
+      document.getElementById("qaModal").style.display = "flex";
+      document.getElementById("qaSummary").textContent = "Running page-by-page QA check...";
+      document.getElementById("qaBody").innerHTML = "";
+      const res = await fetch(`/api/jobs/${jobId}/qa`);
+      const data = await res.json();
+      document.getElementById("qaSummary").innerHTML =
+        `Chapters/Pages: <b>${data.total_chapters}</b> &nbsp;|&nbsp; Paragraphs: <b>${data.total_paragraphs}</b> &nbsp;|&nbsp; Images: <b>${data.total_images}</b> &nbsp;|&nbsp; Empty/Flagged: <b>${data.flagged}</b>`;
+      const rows = (data.pages || []).map(p =>
+        `<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px 10px;">${p.idx}</td><td style="padding:6px 10px;">${p.name}</td><td style="padding:6px 10px;">${p.paragraphs}</td><td style="padding:6px 10px;">${p.images}</td><td style="padding:6px 10px;">${p.status === "OK" ? "✅ OK" : "⚠️ " + p.status}</td></tr>`
+      ).join("");
+      document.getElementById("qaBody").innerHTML =
+        `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f1f5f9;text-align:left;"><th style="padding:8px 10px;">#</th><th style="padding:8px 10px;">Page / File</th><th style="padding:8px 10px;">Paragraphs</th><th style="padding:8px 10px;">Images</th><th style="padding:8px 10px;">Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
   </script>
+
+  <div id="qaModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;width:100%;max-width:780px;max-height:85vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+      <div style="padding:14px 18px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+        <strong>📊 Page-by-Page QA Completeness Report</strong>
+        <button type="button" onclick="document.getElementById('qaModal').style.display='none'" style="background:#334155;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">✕ Close</button>
+      </div>
+      <div id="qaSummary" style="padding:12px 18px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;"></div>
+      <div id="qaBody" style="flex:1;overflow-y:auto;padding:10px 18px;"></div>
+    </div>
+  </div>
 
   <div id="edModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div style="background:#fff;width:100%;max-width:900px;max-height:90vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.3);">

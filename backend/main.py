@@ -421,6 +421,48 @@ def api_restart_server():
     return {"status": "restarting"}
 
 
+@app.get("/api/jobs/{job_id}/qa")
+def api_job_qa(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    j = jobs[job_id]
+    if j["status"] != "completed" or not os.path.exists(j["output_path"]):
+        raise HTTPException(status_code=400, detail="EPUB not ready for QA.")
+    from ebooklib import epub, ITEM_DOCUMENT, ITEM_IMAGE
+    from bs4 import BeautifulSoup
+
+    book = epub.read_epub(j["output_path"])
+    docs = [i for i in book.get_items() if i.get_type() == ITEM_DOCUMENT]
+    total_images = len([i for i in book.get_items() if i.get_type() == ITEM_IMAGE])
+    pages = []
+    total_paras = 0
+    flagged = 0
+    for idx, item in enumerate(docs):
+        raw = item.get_content().decode("utf-8", errors="replace")
+        soup = BeautifulSoup(raw, "lxml")
+        paras = [p for p in soup.find_all("p") if p.get_text(strip=True)]
+        imgs = soup.find_all("img")
+        total_paras += len(paras)
+        status = "OK"
+        if len(paras) == 0 and len(imgs) == 0:
+            status = "Empty"
+            flagged += 1
+        pages.append({
+            "idx": idx,
+            "name": item.get_name(),
+            "paragraphs": len(paras),
+            "images": len(imgs),
+            "status": status,
+        })
+    return {
+        "total_chapters": len(docs),
+        "total_paragraphs": total_paras,
+        "total_images": total_images,
+        "flagged": flagged,
+        "pages": pages,
+    }
+
+
 @app.post("/api/selective-proofread")
 async def api_selective_proofread(
     job_id: str = Form(""),
