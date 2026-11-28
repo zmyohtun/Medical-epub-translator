@@ -1,4 +1,4 @@
-# 🩺📚 Medical PDF → Structured EPUB → Myanmar Translator
+# 🩺📚 Medical PDF → Structured EPUB → Myanmar Translator (v1.01)
 
 A fast, medical-friendly web application that converts complex **Medical PDF textbooks** into **structured EPUB** files and translates them into **natural, accurate Myanmar** while preserving medical terminology, tables, figures, and formatting.
 
@@ -53,6 +53,6 @@ Then open **http://127.0.0.1:8000** in your browser.
 Special thanks to everyone whose work made this project possible:
 
 - **🇲🇲 Saturngod (`Sagar`)** — For the inspiring architecture and vision behind the `Sagar` EPUB translator app.
-- **📖 Calibre & PyMuPDF** — For powerful PDF parsing and EPUB conversion engines.
+- **🐍 Python & PyMuPDF (`fitz`)** — Special tribute for powering **v1.01**: world-standard PDF table extraction, clustered 180 DPI Figure-Region Snapshots, running header/footer filtering, and clean line-by-line reference preservation.
 - **🤖 Google Gemini & OpenRouter** — For fast, high-quality medical translation capabilities.
 - **🧰 FastAPI & ebooklib** — For the clean Python web and EPUB tooling ecosystem.
