@@ -590,7 +590,15 @@
     async function restartServer() {
       if (!confirm("Restart the backend server now?")) return;
       await fetch("/api/restart-server", { method: "POST" });
-      setTimeout(() => location.reload(), 2000);
+      const checkReady = setInterval(async () => {
+        try {
+          const r = await fetch("/");
+          if (r.ok) {
+            clearInterval(checkReady);
+            location.reload();
+          }
+        } catch (e) {}
+      }, 600);
     }
   </script>
 
