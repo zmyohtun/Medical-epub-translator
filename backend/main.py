@@ -42,7 +42,7 @@ async def api_pdf_to_epub(
     title: str = Form(""),
     author: str = Form(""),
     pages_per_chapter: int = Form(15),
-    engine: str = Form("calibre"),
+    engine: str = Form("pymupdf"),
 ):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a valid .pdf file.")
