@@ -307,6 +307,8 @@
         <button id="btnStep2" onclick="startStep2()">Translate EPUB to Myanmar</button>
         <button id="btnFixAi" style="background:#475569;" onclick="startFixAi()">Fix with AI (XHTML Repair)</button>
         <button type="button" style="background:#0f766e;" onclick="saveSettings(true)">Save Settings</button>
+        <button type="button" style="background:#b45309;margin-left:8px;" onclick="clearCheckpoints()">🗑️ Clear Checkpoints</button>
+        <button type="button" style="background:#475569;margin-left:8px;" onclick="restartServer()">🔄 Restart App</button>
       </div>
 
       <div class="progress-box" id="prog2">
@@ -576,6 +578,19 @@
         return;
       }
       pollJob(data.job_id, "bar2", "msg2", "res2", "btnTranslate", null);
+    }
+
+    async function clearCheckpoints() {
+      if (!confirm("Clear all saved translation checkpoints? Next translation will start fresh.")) return;
+      const res = await fetch("/api/clear-checkpoints", { method: "POST" });
+      const data = await res.json();
+      alert(`Cleared ${data.removed || 0} checkpoint file(s).`);
+    }
+
+    async function restartServer() {
+      if (!confirm("Restart the backend server now?")) return;
+      await fetch("/api/restart-server", { method: "POST" });
+      setTimeout(() => location.reload(), 2000);
     }
   </script>
 

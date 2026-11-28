@@ -395,6 +395,32 @@ def api_save_job_chapter(job_id: str, idx: int, payload: dict):
     return {"status": "saved", "idx": idx}
 
 
+@app.post("/api/clear-checkpoints")
+def api_clear_checkpoints():
+    import glob
+    ckpt_dir = os.path.join(WORKSPACE_DIR, "checkpoints")
+    removed = 0
+    if os.path.isdir(ckpt_dir):
+        for f in glob.glob(os.path.join(ckpt_dir, "*.json")):
+            try:
+                os.remove(f)
+                removed += 1
+            except OSError:
+                pass
+    return {"status": "ok", "removed": removed}
+
+
+@app.post("/api/restart-server")
+def api_restart_server():
+    import sys
+    def _delayed_restart():
+        import time
+        time.sleep(0.5)
+        os.execv(sys.executable, [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"])
+    threading.Thread(target=_delayed_restart, daemon=True).start()
+    return {"status": "restarting"}
+
+
 @app.post("/api/selective-proofread")
 async def api_selective_proofread(
     job_id: str = Form(""),
