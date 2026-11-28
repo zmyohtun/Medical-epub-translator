@@ -219,6 +219,30 @@ def _extract_page_html(
     except Exception:
         pass
 
+    # Pre-compute Figure-Region Snapshot bounding box so overlaid labels aren't duplicated as text
+    fig_rects = []
+    for img_info in page.get_images(full=True):
+        xref = img_info[0]
+        if xref in seen_xrefs:
+            continue
+        seen_xrefs.add(xref)
+        for r in page.get_image_rects(xref):
+            if r.width > 40 and r.height > 40:
+                fig_rects.append(r)
+
+    clip_rect = None
+    if fig_rects:
+        union_rect = fig_rects[0]
+        for r in fig_rects[1:]:
+            union_rect = union_rect | r
+        pad = 24
+        clip_rect = fitz.Rect(
+            max(page.rect.x0, union_rect.x0 - pad),
+            max(page.rect.y0, union_rect.y0 - pad),
+            min(page.rect.x1, union_rect.x1 + pad),
+            min(page.rect.y1, union_rect.y1 + pad),
+        )
+
     blocks = page.get_text("dict").get("blocks", [])
     for b in blocks:
         if b.get("type") != 0:
@@ -248,6 +272,9 @@ def _extract_page_html(
         full_text = " ".join(block_text_parts).strip()
         if not full_text:
             continue
+        # Skip text blocks already captured inside the Figure-Region Snapshot (except Figure/Table captions)
+        if clip_rect is not None and b_rect.intersects(clip_rect) and not re.match(r"^(Figure|Table|Fig\.)\s+\d", full_text, re.IGNORECASE):
+            continue
         # Skip isolated chart/axis-label fragments (e.g. '100 101 CD45', '800 800', 'SS INT', 'FS INT', 'TIME 600 800 1000')
         if len(full_text) <= 80 and re.fullmatch(
             r"(?:[\d.\-–+%^/]+|SSC|FSC|SS|FS|INT|TIME|WBC|FL\d|CD\d+[a-z]?|FITC|PE|APC|PerCP|cyCD\d+|sCD\d+)(?:\s+(?:[\d.\-–+%^/]+|SSC|FSC|SS|FS|INT|TIME|WBC|FL\d|CD\d+[a-z]?|FITC|PE|APC|PerCP|cyCD\d+|sCD\d+))*",
@@ -275,28 +302,8 @@ def _extract_page_html(
         else:
             parts.append(f"<p>{escaped}</p>")
 
-    # Figure-Region Snapshot: capture composite diagrams (image + overlaid labels/arrows) as a single crisp PNG
-    fig_rects = []
-    for img_info in page.get_images(full=True):
-        xref = img_info[0]
-        if xref in seen_xrefs:
-            continue
-        seen_xrefs.add(xref)
-        for r in page.get_image_rects(xref):
-            if r.width > 40 and r.height > 40:
-                fig_rects.append(r)
-
-    if fig_rects:
-        union_rect = fig_rects[0]
-        for r in fig_rects[1:]:
-            union_rect = union_rect | r
-        pad = 24
-        clip_rect = fitz.Rect(
-            max(page.rect.x0, union_rect.x0 - pad),
-            max(page.rect.y0, union_rect.y0 - pad),
-            min(page.rect.x1, union_rect.x1 + pad),
-            min(page.rect.y1, union_rect.y1 + pad),
-        )
+    # Render the pre-computed Figure-Region Snapshot as a single crisp PNG
+    if clip_rect is not None:
         try:
             pix = page.get_pixmap(clip=clip_rect, dpi=180)
             img_bytes = pix.tobytes("png")
