@@ -219,7 +219,7 @@ def _extract_page_html(
     except Exception:
         pass
 
-    # Pre-compute Figure-Region Snapshot bounding box so overlaid labels aren't duplicated as text
+    # Pre-compute clustered Figure-Region Snapshots so separate figures (e.g. Fig 1.3 vs Fig 1.4) stay separate
     fig_rects = []
     for img_info in page.get_images(full=True):
         xref = img_info[0]
@@ -230,18 +230,28 @@ def _extract_page_html(
             if r.width > 40 and r.height > 40:
                 fig_rects.append(r)
 
-    clip_rect = None
-    if fig_rects:
-        union_rect = fig_rects[0]
-        for r in fig_rects[1:]:
-            union_rect = union_rect | r
-        pad = 24
-        clip_rect = fitz.Rect(
-            max(page.rect.x0, union_rect.x0 - pad),
-            max(page.rect.y0, union_rect.y0 - pad),
-            min(page.rect.x1, union_rect.x1 + pad),
-            min(page.rect.y1, union_rect.y1 + pad),
+    clip_rects = []
+    for r in fig_rects:
+        expanded = fitz.Rect(r.x0 - 35, r.y0 - 35, r.x1 + 35, r.y1 + 35)
+        merged = False
+        for i, cr in enumerate(clip_rects):
+            if cr.intersects(expanded):
+                clip_rects[i] = cr | r
+                merged = True
+                break
+        if not merged:
+            clip_rects.append(r)
+
+    pad = 24
+    clip_rects = [
+        fitz.Rect(
+            max(page.rect.x0, cr.x0 - pad),
+            max(page.rect.y0, cr.y0 - pad),
+            min(page.rect.x1, cr.x1 + pad),
+            min(page.rect.y1, cr.y1 + pad),
         )
+        for cr in clip_rects
+    ]
 
     blocks = page.get_text("dict").get("blocks", [])
     for b in blocks:
@@ -272,8 +282,11 @@ def _extract_page_html(
         full_text = " ".join(block_text_parts).strip()
         if not full_text:
             continue
-        # Skip text blocks already captured inside the Figure-Region Snapshot (except Figure/Table captions)
-        if clip_rect is not None and b_rect.intersects(clip_rect) and not re.match(r"^(Figure|Table|Fig\.)\s+\d", full_text, re.IGNORECASE):
+        # Skip running headers/footers (e.g. repeated 'Chapter 1: ...' or page numbers)
+        if (b_rect.y1 < 50 or b_rect.y0 > page.rect.height - 45) and len(full_text) < 120:
+            continue
+        # Skip text blocks already captured inside any Figure-Region Snapshot (except Figure/Table captions)
+        if any(b_rect.intersects(cr) for cr in clip_rects) and not re.match(r"^(Figure|Table|Fig\.)\s+\d", full_text, re.IGNORECASE):
             continue
         # Skip isolated chart/axis-label fragments (e.g. '100 101 CD45', '800 800', 'SS INT', 'FS INT', 'TIME 600 800 1000')
         if len(full_text) <= 80 and re.fullmatch(
@@ -302,14 +315,14 @@ def _extract_page_html(
         else:
             parts.append(f"<p>{escaped}</p>")
 
-    # Render the pre-computed Figure-Region Snapshot as a single crisp PNG
-    if clip_rect is not None:
+    # Render each clustered Figure-Region Snapshot as a separate crisp PNG
+    for c_idx, cr in enumerate(clip_rects):
         try:
-            pix = page.get_pixmap(clip=clip_rect, dpi=180)
+            pix = page.get_pixmap(clip=cr, dpi=180)
             img_bytes = pix.tobytes("png")
-            img_filename = f"images/p{page_num}_fig.png"
+            img_filename = f"images/p{page_num}_fig{c_idx}.png"
             epub_img = epub.EpubItem(
-                uid=f"img_{page_num}_fig",
+                uid=f"img_{page_num}_fig{c_idx}",
                 file_name=img_filename,
                 media_type="image/png",
                 content=img_bytes,
