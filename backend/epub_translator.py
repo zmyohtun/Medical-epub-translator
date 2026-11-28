@@ -31,6 +31,16 @@ def _is_reference_section(body_soup: BeautifulSoup) -> bool:
         heading_text = first_heading.get_text(" ", strip=True)
         if SKIP_SECTION_PATTERN.match(heading_text):
             return True
+    # Also detect citation-heavy split pages (e.g. Springer/Wiley References without heading)
+    items = body_soup.find_all(["p", "li"])
+    if len(items) >= 5:
+        cit_hits = 0
+        for it in items[:20]:
+            txt = it.get_text(" ", strip=True)
+            if re.search(r"\b(et al\.|doi:|pp\.|Vol\.|PMID)\b", txt) or re.match(r"^\d+\.\s+[A-Z][a-z]+", txt):
+                cit_hits += 1
+        if cit_hits / min(len(items), 20) >= 0.5:
+            return True
     return False
 
 
@@ -59,8 +69,9 @@ def _build_system_prompt(bilingual_terms: bool, custom_notes: str = "") -> str:
         "5. Broken PDF Line Wraps: Merge fragmented <p> lines that belong to the same sentence/paragraph.\n"
         "6. Figures & Diagrams: Keep <img> tags untouched; translate <figcaption> and figure descriptions.\n"
         "7. Citations & References: Keep inline citations like [1, 2] or (Smith et al., 2023) untouched.\n"
-        "8. " + bilingual_rule + "\n"
-        "9. Output ONLY the translated HTML fragment. Do not wrap in markdown code fences (no ```html)."
+        "8. " + bilingual_rule + " Never transliterate or alter CD markers (CD34, CD45, ZAP70), fluorochromes (FITC, PE, APC, PerCP), gene symbols (BCR-ABL, FLT3), or drug names — keep them exact in English.\n"
+        "9. Never repeat phrases in a loop and never output Chinese/Japanese characters.\n"
+        "10. Output ONLY the translated HTML fragment. Do not wrap in markdown code fences (no ```html)."
         + extra
     )
 
