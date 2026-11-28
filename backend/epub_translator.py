@@ -90,8 +90,14 @@ def _chunk_body_elements(body_soup: BeautifulSoup, max_chars: int = 6000) -> lis
 
 def _strip_code_fences(text: str) -> str:
     text = text.strip()
-    text = re.sub(r"^```(?:html|xhtml|xml)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
+    text = re.sub(r"```(?:html|xhtml|xml)?\s*", "", text)
+    text = text.replace("```", "")
+    # Strip leaked CJK characters from cheap multilingual models
+    text = re.sub(r"[\u4e00-\u9fff]+", "", text)
+    # Collapse short-word repetition loops (e.g. 'par par par par')
+    text = re.sub(r"(\b\w+\b\s+)\1{3,}", r"\1", text)
+    # Collapse long-phrase repetition loops (15+ chars repeated 3+ times)
+    text = re.sub(r"(.{15,}?)\1{2,}", r"\1", text)
     return text.strip()
 
 
