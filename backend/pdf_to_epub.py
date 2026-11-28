@@ -255,6 +255,15 @@ def _extract_page_html(
         ):
             continue
 
+        # Split merged numbered references (e.g. '38. Author... 39. Author...') into separate paragraphs
+        if re.search(r"\(\d{4}\)", full_text) and re.search(r"\b\d{1,3}\.\s+[A-Z][a-z]+", full_text):
+            ref_parts = re.split(r"\s+(?=\d{1,3}\.\s+[A-Z][a-z]+)", full_text)
+            if len(ref_parts) > 1:
+                for rp in ref_parts:
+                    if rp.strip():
+                        parts.append(f"<p>{html.escape(rp.strip())}</p>")
+                continue
+
         escaped = html.escape(full_text)
 
         if max_size >= body_size * 1.45:
